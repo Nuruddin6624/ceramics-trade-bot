@@ -30,7 +30,11 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 def get_price_list():
     """Appwrite থেকে রিয়েল-টাইম ডাটাবেস পড়া"""
     try:
-        result = databases.list_documents(DATABASE_ID, COLLECTION_ID)
+        # এখানে database_id এবং collection_id স্পষ্টভাবে বলে দেওয়া হয়েছে (Appwrite Error Fix)
+        result = databases.list_documents(
+            database_id=DATABASE_ID, 
+            collection_id=COLLECTION_ID
+        )
         price_data = "Ceramics Trade Price List:\n"
         for doc in result['documents']:
             price_data += f"Model: {doc.get('model', 'N/A')}, Size: {doc.get('size', 'N/A')}, Price: {doc.get('price', 'N/A')} TK\n"
@@ -61,7 +65,7 @@ def generate_ai_reply(message_text, image_url=None):
         return response.text
     except Exception as e:
         print("Gemini Error:", e)
-        return "দুঃখিত, একটু কারিগরি সমস্যা হচ্ছে। দয়া করে কিছুক্ষণ পর আবার মেসেজ দিন।"
+        return "দুঃখিত, একটু কারিগরি সমস্যা হচ্ছে। দয়া করে কিছুক্ষণ পর আবার মেসেজ দিন।"
 
 def send_whatsapp_message(chat_id, message):
     """Green-API ব্যবহার করে হোয়াটসঅ্যাপে মেসেজ পাঠানো"""
