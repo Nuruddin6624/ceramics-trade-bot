@@ -30,14 +30,25 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 def get_price_list():
     """Appwrite থেকে রিয়েল-টাইম ডাটাবেস পড়া"""
     try:
-        # এখানে database_id এবং collection_id স্পষ্টভাবে বলে দেওয়া হয়েছে (Appwrite Error Fix)
         result = databases.list_documents(
             database_id=DATABASE_ID, 
             collection_id=COLLECTION_ID
         )
         price_data = "Ceramics Trade Price List:\n"
-        for doc in result['documents']:
-            price_data += f"Model: {doc.get('model', 'N/A')}, Size: {doc.get('size', 'N/A')}, Price: {doc.get('price', 'N/A')} TK\n"
+        
+        # Appwrite v4 আপডেট: 'documents' এখন অবজেক্ট হিসেবে আসে
+        for doc in result.documents:
+            # অবজেক্ট বা ডিকশনারি যেভাবেই আসুক, সেফভাবে ভ্যালু বের করা
+            if hasattr(doc, 'get'):
+                model_val = doc.get('model', 'N/A')
+                size_val = doc.get('size', 'N/A')
+                price_val = doc.get('price', 'N/A')
+            else:
+                model_val = getattr(doc, 'model', 'N/A')
+                size_val = getattr(doc, 'size', 'N/A')
+                price_val = getattr(doc, 'price', 'N/A')
+                
+            price_data += f"Model: {model_val}, Size: {size_val}, Price: {price_val} TK\n"
         return price_data
     except Exception as e:
         print("Appwrite Error:", e)
