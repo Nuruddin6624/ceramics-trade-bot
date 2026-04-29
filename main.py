@@ -7,7 +7,7 @@ from google import genai
 
 app = Flask(__name__)
 
-# ================= ENV VARIABLES =================
+# ================= ENV =================
 ID_INSTANCE = os.environ.get('ID_INSTANCE')
 API_TOKEN_INSTANCE = os.environ.get('API_TOKEN_INSTANCE')
 APPWRITE_API_KEY = os.environ.get('APPWRITE_API_KEY')
@@ -24,18 +24,14 @@ databases = Databases(client)
 DATABASE_ID = '69f230ef000baaa2a329'
 COLLECTION_ID = 'tiles_pricing'
 
-# ================= Gemini (NEW SDK) =================
+# ================= Gemini =================
 client_ai = genai.Client(api_key=GEMINI_API_KEY)
 
 # ================= Price List =================
 def get_price_list():
     try:
-        result = databases.list_documents(
-            database_id=DATABASE_ID,
-            collection_id=COLLECTION_ID
-        )
-
-        docs = result.get('documents', [])
+        result = databases.list_documents(DATABASE_ID, COLLECTION_ID)
+        docs = result['documents']
 
         price_data = "📊 Ceramics Trade Price List:\n"
 
@@ -50,7 +46,7 @@ def get_price_list():
 
     except Exception as e:
         print("Appwrite Error:", e)
-        return "⚠️ প্রাইস লিস্ট লোড করা যাচ্ছে না।"
+        return "⚠️ প্রাইস লিস্ট পাওয়া যাচ্ছে না।"
 
 # ================= AI Reply =================
 def generate_ai_reply(message_text, image_url=None):
@@ -60,38 +56,46 @@ def generate_ai_reply(message_text, image_url=None):
     তুমি 'Ceramics Trade'-এর একজন প্রফেশনাল সেলস এক্সিকিউটিভ।
     
     RULES:
-    - সবসময় ভদ্র ও প্রফেশনাল বাংলা ব্যবহার করবে
-    - কাস্টমারকে 'স্যার' বা 'ভাই' বলে সম্বোধন করবে
+    - ভদ্র বাংলা ব্যবহার করবে
+    - কাস্টমারকে সম্মান করবে
     - তালিকা থেকে সঠিক দাম বলবে
-    - না পেলে আনুমানিক সাজেশন দিবে
+    - না পেলে সাজেশন দিবে
     
     {price_list}
     """
 
-    try:
-        contents = [system_prompt]
+    models = [
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash"
+    ]
 
-        if image_url:
-            img_data = requests.get(image_url, timeout=5).content
-            contents.append({"mime_type": "image/jpeg", "data": img_data})
+    for model_name in models:
+        try:
+            contents = [system_prompt]
 
-        if message_text:
-            contents.append(message_text)
-        else:
-            contents.append("এই টাইলসের দাম কত?")
+            if image_url:
+                img_data = requests.get(image_url, timeout=5).content
+                contents.append({"mime_type": "image/jpeg", "data": img_data})
 
-        response = client_ai.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=contents
-        )
+            if message_text:
+                contents.append(message_text)
+            else:
+                contents.append("এই টাইলসের দাম কত?")
 
-        return response.text
+            response = client_ai.models.generate_content(
+                model=model_name,
+                contents=contents
+            )
 
-    except Exception as e:
-        print("Gemini Error:", e)
-        return "দুঃখিত, সার্ভারে সমস্যা হচ্ছে। একটু পরে আবার চেষ্টা করুন।"
+            return response.text
 
-# ================= WhatsApp Send =================
+        except Exception as e:
+            print(f"{model_name} failed:", e)
+
+    return "দুঃখিত, সার্ভার ব্যস্ত আছে। একটু পরে আবার চেষ্টা করুন।"
+
+# ================= WhatsApp =================
 def send_whatsapp_message(chat_id, message):
     try:
         url = f"https://api.green-api.com/waInstance{ID_INSTANCE}/sendMessage/{API_TOKEN_INSTANCE}"
