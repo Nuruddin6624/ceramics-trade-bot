@@ -3,7 +3,9 @@ import requests
 from flask import Flask, request, jsonify
 from appwrite.client import Client
 from appwrite.services.databases import Databases
-import google.generativeai as genai
+# গুগলের নতুন প্যাকেজ ইম্পোর্ট
+from google import genai
+from google.genai import types
 
 app = Flask(__name__)
 
@@ -14,11 +16,10 @@ APPWRITE_API_KEY = os.environ.get('APPWRITE_API_KEY')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # ================= ইগনোর লিস্ট (যাদেরকে বট রিপ্লাই দেবে না) =================
-# এখানে আপনার পছন্দমতো নাম্বারগুলো কমা (,) দিয়ে যুক্ত করুন। 
-# নাম্বারের শুরুতে অবশ্যই 88 এবং শেষে @c.us থাকতে হবে।
+# আপনার নির্দিষ্ট নাম্বারগুলো এখানে বসাবেন
 IGNORED_NUMBERS = [
-    '8801310513707@c.us', 
-    '8801313037647@c.us'
+    '8801700000000@c.us', 
+    '8801800000000@c.us'
 ]
 
 # ================= Appwrite কানেকশন =================
@@ -31,10 +32,10 @@ databases = Databases(client)
 DATABASE_ID = '69f230ef000baaa2a329'
 COLLECTION_ID = 'tiles_pricing'
 
-# ================= Gemini AI কানেকশন =================
-genai.configure(api_key=GEMINI_API_KEY)
-model_name = 'gemini-2.0-flash' 
-model = genai.GenerativeModel(model_name)
+# ================= নতুন Gemini AI কানেকশন =================
+# নতুন নিয়মে ক্লায়েন্ট সেটআপ
+ai_client = genai.Client(api_key=GEMINI_API_KEY)
+MODEL_NAME = 'gemini-2.0-flash' 
 
 def get_price_list():
     """Appwrite থেকে টাইলসের ডাটাবেস পড়া"""
@@ -69,15 +70,26 @@ def generate_ai_reply(message_text, image_url=None):
     try:
         if image_url:
             img_data = requests.get(image_url).content
-            image_parts = [{"mime_type": "image/jpeg", "data": img_data}]
             prompt_text = message_text if message_text else "এই টাইলসটির মডেল ও দাম কত?"
-            response = model.generate_content([system_prompt, image_parts[0], prompt_text])
+            
+            # নতুন প্যাকেজে ছবি প্রসেস করার নিয়ম
+            contents = [
+                system_prompt,
+                types.Part.from_bytes(data=img_data, mime_type='image/jpeg'),
+                prompt_text
+            ]
+            response = ai_client.models.generate_content(
+                model=MODEL_NAME,
+                contents=contents
+            )
         else:
-            response = model.generate_content([system_prompt, message_text])
+            response = ai_client.models.generate_content(
+                model=MODEL_NAME,
+                contents=[system_prompt, message_text]
+            )
         return response.text
     except Exception as e:
         print(f"Gemini Error: {e}")
-        # যেকোনো এরর আসলে কাস্টমারকে আপনার বলা মেসেজটি দেবে
         return "স্যার আমাকে একটু সময় দেন আমি এখনই রিপ্লাই দিচ্ছি।"
 
 def send_whatsapp_message(chat_id, message):
@@ -104,12 +116,10 @@ def webhook():
             
         # ২. যেকোনো হোয়াটসঅ্যাপ গ্রুপে অটো-রিপ্লাই সম্পূর্ণ বন্ধ
         if '@g.us' in sender_chat_id:
-            print("Group message ignored.")
             return jsonify({"status": "ignored_group"}), 200
             
-        # ৩. আপনার সেট করা নির্দিষ্ট নাম্বারগুলোতে অটো-রিপ্লাই বন্ধ
+        # ৩. নির্দিষ্ট নাম্বারগুলোতে অটো-রিপ্লাই বন্ধ
         if sender_chat_id in IGNORED_NUMBERS:
-            print(f"Ignored message from blacklisted number: {sender_chat_id}")
             return jsonify({"status": "ignored_blacklisted"}), 200
 
         msg_text = ""
